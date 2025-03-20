@@ -99,6 +99,188 @@ document.head.appendChild(style);
 // Modal 3D Scene
 let modalScene, modalCamera, modalRenderer, modalObject;
 
+// Add movement controls
+let isDragging = false;
+let previousMousePosition = { x: 0, y: 0 };
+let selectedObject = null;
+let planetRotationSpeed = 0.0005;
+let autoRotation = true;
+let lastMouseX = 0;
+let lastMouseY = 0;
+let isRotating = false;
+
+// Add event listeners for object movement
+document.addEventListener('mousedown', onMouseDown);
+document.addEventListener('mousemove', onMouseMove);
+document.addEventListener('mouseup', onMouseUp);
+document.addEventListener('keydown', onKeyDown);
+document.addEventListener('wheel', onMouseWheel, { passive: false });
+
+// Handle mouse wheel for zoom
+function onMouseWheel(event) {
+    event.preventDefault();
+    const zoomSpeed = 0.1;
+    const delta = event.deltaY;
+    camera.position.z += delta * zoomSpeed;
+    camera.position.z = Math.max(5, Math.min(15, camera.position.z));
+}
+
+// Update mouse movement handler
+function onMouseMove(event) {
+    if (isDragging && selectedObject) {
+        const deltaMove = {
+            x: event.clientX - previousMousePosition.x,
+            y: event.clientY - previousMousePosition.y
+        };
+        selectedObject.rotation.y += deltaMove.x * 0.005;
+        selectedObject.rotation.x += deltaMove.y * 0.005;
+        selectedObject.rotation.x = Math.max(-Math.PI/2, Math.min(Math.PI/2, selectedObject.rotation.x));
+        previousMousePosition = {
+            x: event.clientX,
+            y: event.clientY
+        };
+    }
+
+    if (planet) {
+        const mouseX = (event.clientX - window.innerWidth / 2) / 100;
+        const mouseY = (event.clientY - window.innerHeight / 2) / 100;
+        const targetRotationY = -Math.PI * 0.1 + mouseX * 0.2;
+        const targetRotationX = Math.PI * 0.1 + mouseY * 0.2;
+        planet.rotation.y += (targetRotationY - planet.rotation.y) * 0.05;
+        planet.rotation.x += (targetRotationX - planet.rotation.x) * 0.05;
+    }
+}
+
+// Update mouse down handler
+function onMouseDown(event) {
+    isDragging = true;
+    previousMousePosition = {
+        x: event.clientX,
+        y: event.clientY
+    };
+    
+    const raycaster = new THREE.Raycaster();
+    const mouse = new THREE.Vector2();
+    mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+    mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+    
+    raycaster.setFromCamera(mouse, camera);
+    const intersects = raycaster.intersectObjects(scene.children, true);
+    
+    if (intersects.length > 0) {
+        selectedObject = intersects[0].object;
+        while (!selectedObject.userData.isSelectable && selectedObject.parent) {
+            selectedObject = selectedObject.parent;
+        }
+        autoRotation = false;
+    }
+}
+
+// Update mouse up handler
+function onMouseUp() {
+    isDragging = false;
+    selectedObject = null;
+    autoRotation = true;
+}
+
+// Update key down handler
+function onKeyDown(event) {
+    if (!selectedObject) return;
+    
+    const moveSpeed = 0.1;
+    const rotateSpeed = 0.1;
+    
+    switch(event.key) {
+        case 'ArrowLeft':
+            selectedObject.position.x -= moveSpeed;
+            break;
+        case 'ArrowRight':
+            selectedObject.position.x += moveSpeed;
+            break;
+        case 'ArrowUp':
+            selectedObject.position.y += moveSpeed;
+            break;
+        case 'ArrowDown':
+            selectedObject.position.y -= moveSpeed;
+            break;
+        case 'w':
+            selectedObject.position.z -= moveSpeed;
+            break;
+        case 's':
+            selectedObject.position.z += moveSpeed;
+            break;
+        case 'q':
+            selectedObject.rotation.y -= rotateSpeed;
+            break;
+        case 'e':
+            selectedObject.rotation.y += rotateSpeed;
+            break;
+        case 'r':
+            selectedObject.rotation.x -= rotateSpeed;
+            break;
+        case 'f':
+            selectedObject.rotation.x += rotateSpeed;
+            break;
+        case ' ': // Spacebar to reset position
+            selectedObject.position.set(0, 0, 0);
+            selectedObject.rotation.set(0, 0, 0);
+            break;
+    }
+}
+
+// Update animation loop
+function animate() {
+    requestAnimationFrame(animate);
+    
+    if (planet) {
+        if (autoRotation) {
+            planet.rotation.y += planetRotationSpeed;
+        }
+        
+        planet.children.forEach(child => {
+            if (child.material instanceof THREE.ShaderMaterial) {
+                child.material.uniforms.viewVector.value = camera.position;
+            }
+        });
+    }
+    
+    // Animate meteorites
+    meteorites.forEach(meteor => {
+        meteor.userData.angle += meteor.userData.speed;
+        
+        // Update position
+        meteor.position.x = Math.cos(meteor.userData.angle) * meteor.userData.radius;
+        meteor.position.z = Math.sin(meteor.userData.angle) * meteor.userData.radius;
+        meteor.position.y = meteor.userData.height + Math.sin(meteor.userData.angle * 2) * 0.1;
+        
+        // Rotate the cube
+        meteor.children[0].rotation.x += meteor.userData.rotationSpeed.x;
+        meteor.children[0].rotation.y += meteor.userData.rotationSpeed.y;
+        meteor.children[0].rotation.z += meteor.userData.rotationSpeed.z;
+
+        // Make text always face camera
+        const textGroup = meteor.children[1];
+        textGroup.lookAt(camera.position);
+    });
+
+    // Animate background particles
+    const time = Date.now() * 0.001;
+    particles.forEach(particle => {
+        particle.rotation.x += particle.userData.rotationSpeed.x;
+        particle.rotation.y += particle.userData.rotationSpeed.y;
+        particle.rotation.z += particle.userData.rotationSpeed.z;
+        
+        const offset = particle.userData.movementOffset;
+        const originalPos = particle.userData.originalPosition;
+        
+        particle.position.x = originalPos.x + Math.sin(time + offset) * 0.3;
+        particle.position.y = originalPos.y + Math.cos(time + offset) * 0.3;
+        particle.position.z = originalPos.z + Math.sin(time * 0.5 + offset) * 0.3;
+    });
+    
+    renderer.render(scene, camera);
+}
+
 // Initialize the scene
 function init() {
     // Create scene
@@ -438,200 +620,6 @@ function onWindowResize() {
     renderer.setSize(window.innerWidth, window.innerHeight);
 }
 
-// Handle mouse movement
-function onMouseMove(event) {
-    if (planet) {
-        const mouseX = (event.clientX - window.innerWidth / 2) / 100;
-        const mouseY = (event.clientY - window.innerHeight / 2) / 100;
-        
-        // Limit rotation to keep Egypt visible
-        const targetRotationY = -Math.PI * 0.1 + mouseX * 0.2;
-        const targetRotationX = Math.PI * 0.1 + mouseY * 0.2;
-        
-        planet.rotation.y += (targetRotationY - planet.rotation.y) * 0.05;
-        planet.rotation.x += (targetRotationX - planet.rotation.x) * 0.05;
-    }
-}
-
-// Animation loop
-function animate() {
-    requestAnimationFrame(animate);
-    
-    if (planet) {
-        planet.rotation.y += 0.0005;
-        planet.children.forEach(child => {
-            if (child.material instanceof THREE.ShaderMaterial) {
-                child.material.uniforms.viewVector.value = camera.position;
-            }
-        });
-    }
-    
-    // Animate meteorites
-    meteorites.forEach(meteor => {
-        meteor.userData.angle += meteor.userData.speed;
-        
-        // Update position
-        meteor.position.x = Math.cos(meteor.userData.angle) * meteor.userData.radius;
-        meteor.position.z = Math.sin(meteor.userData.angle) * meteor.userData.radius;
-        meteor.position.y = meteor.userData.height + Math.sin(meteor.userData.angle * 2) * 0.1;
-        
-        // Rotate only the moon
-        meteor.children[0].rotation.x += meteor.userData.rotationSpeed.x;
-        meteor.children[0].rotation.y += meteor.userData.rotationSpeed.y;
-        meteor.children[0].rotation.z += meteor.userData.rotationSpeed.z;
-
-        // Make text always face camera
-        const textGroup = meteor.children[1];
-        textGroup.lookAt(camera.position);
-    });
-
-    // Animate background particles
-    const time = Date.now() * 0.001;
-    particles.forEach(particle => {
-        particle.rotation.x += particle.userData.rotationSpeed.x;
-        particle.rotation.y += particle.userData.rotationSpeed.y;
-        particle.rotation.z += particle.userData.rotationSpeed.z;
-        
-        const offset = particle.userData.movementOffset;
-        const originalPos = particle.userData.originalPosition;
-        
-        particle.position.x = originalPos.x + Math.sin(time + offset) * 0.3;
-        particle.position.y = originalPos.y + Math.cos(time + offset) * 0.3;
-        particle.position.z = originalPos.z + Math.sin(time * 0.5 + offset) * 0.3;
-    });
-    
-    renderer.render(scene, camera);
-}
-
-// Add function to create service meteorites
-function createServiceMeteors() {
-    const services = [
-        { name: 'Web Develop', color: 0x00ff00 },
-        { name: 'UI/UX Design', color: 0xff00ff },
-        { name: 'AI Solutions', color: 0x0000ff },
-        { name: 'Mobile Apps', color: 0xffff00 },
-        { name: 'Marketing', color: 0x00ffff }
-    ];
-
-    services.forEach((service, index) => {
-        const meteorGroup = new THREE.Group();
-
-        // Create moon-like sphere
-        const moonGeometry = new THREE.SphereGeometry(0.2, 32, 32);
-        const moonMaterial = new THREE.MeshPhongMaterial({
-            color: 0xcccccc,
-            roughness: 0.8,
-            metalness: 0.2,
-            emissive: service.color,
-            emissiveIntensity: 0.1
-        });
-        const moon = new THREE.Mesh(moonGeometry, moonMaterial);
-        meteorGroup.add(moon);
-
-        // Create text display group that will always face camera
-        const textGroup = new THREE.Group();
-
-        // Create background panel
-        const panelGeometry = new THREE.PlaneGeometry(2, 0.6);
-        const panelMaterial = new THREE.MeshPhongMaterial({
-            color: 0x000000,
-            transparent: true,
-            opacity: 0.7,
-            side: THREE.DoubleSide
-        });
-        const panel = new THREE.Mesh(panelGeometry, panelMaterial);
-        
-        // Add glow to panel edges
-        const glowGeometry = new THREE.PlaneGeometry(2.1, 0.7);
-        const glowMaterial = new THREE.MeshBasicMaterial({
-            color: service.color,
-            transparent: true,
-            opacity: 0.3,
-            side: THREE.DoubleSide
-        });
-        const glow = new THREE.Mesh(glowGeometry, glowMaterial);
-        glow.position.z = -0.01;
-        textGroup.add(glow);
-        textGroup.add(panel);
-
-        // Create text texture
-        const canvas = document.createElement('canvas');
-        const context = canvas.getContext('2d');
-        canvas.width = 512;
-        canvas.height = 128;
-
-        // Fill background
-        context.fillStyle = 'rgba(0, 0, 0, 0)';
-        context.fillRect(0, 0, canvas.width, canvas.height);
-
-        // Draw text
-        context.font = 'bold 72px Arial';
-        context.textAlign = 'center';
-        context.textBaseline = 'middle';
-        
-        // Add white outline
-        context.strokeStyle = 'rgba(255, 255, 255, 0.8)';
-        context.lineWidth = 8;
-        context.strokeText(service.name, canvas.width/2, canvas.height/2);
-        
-        // Add colored glow
-        context.shadowColor = `rgb(${service.color >> 16}, ${(service.color >> 8) & 255}, ${service.color & 255})`;
-        context.shadowBlur = 20;
-        context.fillStyle = '#ffffff';
-        context.fillText(service.name, canvas.width/2, canvas.height/2);
-
-        const texture = new THREE.CanvasTexture(canvas);
-        texture.minFilter = THREE.LinearFilter;
-        texture.magFilter = THREE.LinearFilter;
-
-        const textGeometry = new THREE.PlaneGeometry(1.9, 0.5);
-        const textMaterial = new THREE.MeshBasicMaterial({
-            map: texture,
-            transparent: true,
-            side: THREE.DoubleSide,
-            depthTest: false,
-            depthWrite: false
-        });
-
-        const textMesh = new THREE.Mesh(textGeometry, textMaterial);
-        textMesh.position.z = 0.01;
-        textGroup.add(textMesh);
-
-        // Position text group
-        textGroup.position.set(1.2, 0.3, 0);
-        meteorGroup.add(textGroup);
-
-        // Set orbital position
-        const angle = (index / services.length) * Math.PI * 2;
-        const orbitRadius = 3;
-        const orbitHeight = (index % 2 === 0 ? 0.5 : -0.5);
-        
-        meteorGroup.position.set(
-            Math.cos(angle) * orbitRadius,
-            orbitHeight,
-            Math.sin(angle) * orbitRadius
-        );
-        
-        meteorGroup.userData = {
-            angle: angle,
-            speed: 0.003,
-            radius: orbitRadius,
-            height: orbitHeight,
-            rotationSpeed: {
-                x: 0.0005,
-                y: 0.0005,
-                z: 0.0005
-            }
-        };
-
-        scene.add(meteorGroup);
-        meteorites.push(meteorGroup);
-    });
-}
-
-// Start everything when the page loads
-window.addEventListener('load', init);
-
 function initModalScene() {
     const container = document.getElementById('modal-3d-container');
     
@@ -771,4 +759,156 @@ window.addEventListener('resize', () => {
         modalCamera.updateProjectionMatrix();
         modalRenderer.setSize(container.clientWidth, container.clientHeight);
     }
-}); 
+});
+
+// Modify createServiceMeteors function to create 3D cubes
+function createServiceMeteors() {
+    const services = [
+        { name: 'Web Develop', color: 0x00ff00 },
+        { name: 'UI/UX Design', color: 0xff00ff },
+        { name: 'AI Solutions', color: 0x0000ff },
+        { name: 'Mobile Apps', color: 0xffff00 },
+        { name: 'Marketing', color: 0x00ffff }
+    ];
+
+    services.forEach((service, index) => {
+        const serviceGroup = new THREE.Group();
+        serviceGroup.userData.isSelectable = true;
+
+        // Create main cube
+        const cubeGeometry = new THREE.BoxGeometry(0.4, 0.4, 0.4);
+        const cubeMaterial = new THREE.MeshPhongMaterial({
+            color: service.color,
+            transparent: true,
+            opacity: 0.8,
+            wireframe: true
+        });
+        const cube = new THREE.Mesh(cubeGeometry, cubeMaterial);
+        serviceGroup.add(cube);
+
+        // Add glowing edges
+        const edges = new THREE.EdgesGeometry(cubeGeometry);
+        const edgesMaterial = new THREE.LineBasicMaterial({
+            color: service.color,
+            transparent: true,
+            opacity: 0.5
+        });
+        const edgesMesh = new THREE.LineSegments(edges, edgesMaterial);
+        serviceGroup.add(edgesMesh);
+
+        // Create text display group that will always face camera
+        const textGroup = new THREE.Group();
+
+        // Create background panel
+        const panelGeometry = new THREE.PlaneGeometry(2, 0.6);
+        const panelMaterial = new THREE.MeshPhongMaterial({
+            color: 0x000000,
+            transparent: true,
+            opacity: 0.7,
+            side: THREE.DoubleSide
+        });
+        const panel = new THREE.Mesh(panelGeometry, panelMaterial);
+        
+        // Add glow to panel edges
+        const glowGeometry = new THREE.PlaneGeometry(2.1, 0.7);
+        const glowMaterial = new THREE.MeshBasicMaterial({
+            color: service.color,
+            transparent: true,
+            opacity: 0.3,
+            side: THREE.DoubleSide
+        });
+        const glow = new THREE.Mesh(glowGeometry, glowMaterial);
+        glow.position.z = -0.01;
+        textGroup.add(glow);
+        textGroup.add(panel);
+
+        // Create text texture
+        const canvas = document.createElement('canvas');
+        const context = canvas.getContext('2d');
+        canvas.width = 512;
+        canvas.height = 128;
+
+        // Fill background
+        context.fillStyle = 'rgba(0, 0, 0, 0)';
+        context.fillRect(0, 0, canvas.width, canvas.height);
+
+        // Draw text
+        context.font = 'bold 72px Arial';
+        context.textAlign = 'center';
+        context.textBaseline = 'middle';
+        
+        // Add white outline
+        context.strokeStyle = 'rgba(255, 255, 255, 0.8)';
+        context.lineWidth = 8;
+        context.strokeText(service.name, canvas.width/2, canvas.height/2);
+        
+        // Add colored glow
+        context.shadowColor = `rgb(${service.color >> 16}, ${(service.color >> 8) & 255}, ${service.color & 255})`;
+        context.shadowBlur = 20;
+        context.fillStyle = '#ffffff';
+        context.fillText(service.name, canvas.width/2, canvas.height/2);
+
+        const texture = new THREE.CanvasTexture(canvas);
+        texture.minFilter = THREE.LinearFilter;
+        texture.magFilter = THREE.LinearFilter;
+
+        const textGeometry = new THREE.PlaneGeometry(1.9, 0.5);
+        const textMaterial = new THREE.MeshBasicMaterial({
+            map: texture,
+            transparent: true,
+            side: THREE.DoubleSide,
+            depthTest: false,
+            depthWrite: false
+        });
+
+        const textMesh = new THREE.Mesh(textGeometry, textMaterial);
+        textMesh.position.z = 0.01;
+        textGroup.add(textMesh);
+
+        // Position text group
+        textGroup.position.set(1.2, 0.3, 0);
+        serviceGroup.add(textGroup);
+
+        // Set initial position
+        const angle = (index / services.length) * Math.PI * 2;
+        const orbitRadius = 3;
+        const orbitHeight = (index % 2 === 0 ? 0.5 : -0.5);
+        
+        serviceGroup.position.set(
+            Math.cos(angle) * orbitRadius,
+            orbitHeight,
+            Math.sin(angle) * orbitRadius
+        );
+        
+        serviceGroup.userData = {
+            angle: angle,
+            speed: 0.003,
+            radius: orbitRadius,
+            height: orbitHeight,
+            rotationSpeed: {
+                x: 0.0005,
+                y: 0.0005,
+                z: 0.0005
+            }
+        };
+
+        scene.add(serviceGroup);
+        meteorites.push(serviceGroup);
+    });
+}
+
+// Start everything when the page loads
+window.addEventListener('load', init); 
+
+function onMouseWheel(event) {
+    event.preventDefault();
+    
+    const zoomSpeed = 0.1;
+    const delta = event.deltaY;
+    
+    // Adjust camera distance
+    camera.position.z += delta * zoomSpeed;
+    
+    // Limit zoom range
+    camera.position.z = Math.max(5, Math.min(15, camera.position.z));
+} 

@@ -58,7 +58,7 @@
         }
 
         .messages-btn {
-            padding: 12px 20px;
+            padding: 10px 20px;
             background: linear-gradient(135deg, #00ffff, #0088ff);
             color: white;
             border: none;
@@ -111,51 +111,69 @@
 
         .title {
             position: fixed;
-            bottom: clamp(80px, 15vh, 150px);
-            left: clamp(20px, 5vw, 50px);
-            font-size: clamp(36px, 8vw, 72px);
+            bottom: clamp(60px, 12vh, 150px);
+            left: clamp(15px, 3vw, 50px);
+            font-size: clamp(24px, 5vw, 72px);
             font-weight: bold;
             opacity: 0.9;
             z-index: 2;
             text-transform: uppercase;
-            letter-spacing: 2px;
+            letter-spacing: clamp(1px, 0.2vw, 2px);
             line-height: 1.2;
             text-shadow: 0 0 20px rgba(0, 255, 255, 0.5);
             transition: all 0.3s ease;
+            max-width: 90vw;
+            word-wrap: break-word;
+            hyphens: auto;
         }
 
         .subtitle {
             position: fixed;
-            bottom: clamp(20px, 5vh, 50px);
-            left: clamp(20px, 5vw, 50px);
-            font-size: clamp(16px, 3vw, 24px);
+            bottom: clamp(15px, 3vh, 50px);
+            left: clamp(15px, 3vw, 50px);
+            font-size: clamp(14px, 2.5vw, 24px);
             opacity: 0.7;
             z-index: 2;
-            max-width: 80vw;
+            max-width: 90vw;
             line-height: 1.5;
-            letter-spacing: 1px;
+            letter-spacing: clamp(0.5px, 0.1vw, 1px);
             text-shadow: 0 0 10px rgba(0, 255, 255, 0.3);
             transition: all 0.3s ease;
+            word-wrap: break-word;
+            hyphens: auto;
+        }
+
+        @media (max-width: 1200px) {
+            .title {
+                font-size: clamp(22px, 4vw, 60px);
+            }
+            
+            .subtitle {
+                font-size: clamp(13px, 2vw, 20px);
+            }
         }
 
         @media (max-width: 768px) {
             .title {
-                bottom: clamp(60px, 12vh, 100px);
+                bottom: clamp(50px, 10vh, 100px);
+                font-size: clamp(20px, 3.5vw, 48px);
             }
             
             .subtitle {
-                bottom: clamp(15px, 4vh, 30px);
+                bottom: clamp(12px, 2.5vh, 30px);
+                font-size: clamp(12px, 1.8vw, 18px);
             }
         }
 
         @media (max-width: 480px) {
-            header {
-                padding: 15px;
+            .title {
+                bottom: clamp(40px, 8vh, 80px);
+                font-size: clamp(18px, 3vw, 36px);
             }
-
-            #contact-btn {
-                padding: 8px 15px;
-                font-size: 14px;
+            
+            .subtitle {
+                bottom: clamp(10px, 2vh, 25px);
+                font-size: clamp(11px, 1.5vw, 16px);
             }
         }
 
@@ -305,7 +323,7 @@
         <header>
             <div class="logo">Service<span>Kit</span></div>
             <div class="header-buttons">
-                <a href="messages.html" class="messages-btn">Messages</a>
+                <!-- <a href="messages.html" class="messages-btn">Messages</a> -->
                 <button id="contact-btn">Contact Us</button>
             </div>
         </header>
