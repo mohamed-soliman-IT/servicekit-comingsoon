@@ -116,6 +116,56 @@ document.addEventListener('mouseup', onMouseUp);
 document.addEventListener('keydown', onKeyDown);
 document.addEventListener('wheel', onMouseWheel, { passive: false });
 
+// Add touch event variables
+let touchStartX = 0;
+let touchStartY = 0;
+let isTouching = false;
+
+// Add touch event listeners
+document.addEventListener('touchstart', onTouchStart, { passive: false });
+document.addEventListener('touchmove', onTouchMove, { passive: false });
+document.addEventListener('touchend', onTouchEnd);
+
+// Touch start handler
+function onTouchStart(event) {
+    event.preventDefault();
+    isTouching = true;
+    touchStartX = event.touches[0].clientX;
+    touchStartY = event.touches[0].clientY;
+    autoRotation = false;
+}
+
+// Touch move handler
+function onTouchMove(event) {
+    event.preventDefault();
+    if (!isTouching) return;
+
+    const touchX = event.touches[0].clientX;
+    const touchY = event.touches[0].clientY;
+
+    const deltaX = touchX - touchStartX;
+    const deltaY = touchY - touchStartY;
+
+    if (selectedObject) {
+        selectedObject.rotation.y += deltaX * 0.005;
+        selectedObject.rotation.x += deltaY * 0.005;
+        selectedObject.rotation.x = Math.max(-Math.PI/2, Math.min(Math.PI/2, selectedObject.rotation.x));
+    } else if (planet) {
+        planet.rotation.y += deltaX * 0.005;
+        planet.rotation.x += deltaY * 0.005;
+        planet.rotation.x = Math.max(-Math.PI/2, Math.min(Math.PI/2, planet.rotation.x));
+    }
+
+    touchStartX = touchX;
+    touchStartY = touchY;
+}
+
+// Touch end handler
+function onTouchEnd() {
+    isTouching = false;
+    autoRotation = true;
+}
+
 // Handle mouse wheel for zoom
 function onMouseWheel(event) {
     event.preventDefault();
@@ -125,7 +175,7 @@ function onMouseWheel(event) {
     camera.position.z = Math.max(5, Math.min(15, camera.position.z));
 }
 
-// Update mouse movement handler
+// Update mouse movement handler to work with both mouse and touch
 function onMouseMove(event) {
     if (isDragging && selectedObject) {
         const deltaMove = {
@@ -141,7 +191,63 @@ function onMouseMove(event) {
         };
     }
 
-    if (planet) {
+    // Handle hover effects for service moons
+    const raycaster = new THREE.Raycaster();
+    const mouse = new THREE.Vector2();
+    mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+    mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+    
+    raycaster.setFromCamera(mouse, camera);
+    const intersects = raycaster.intersectObjects(scene.children, true);
+    
+    // Reset all hover states
+    meteorites.forEach(meteor => {
+        if (meteor.userData.hovered) {
+            meteor.scale.copy(meteor.userData.originalScale);
+            meteor.userData.hovered = false;
+        }
+    });
+    
+    // Apply hover effect to intersected object
+    if (intersects.length > 0) {
+        const hoveredObject = intersects[0].object;
+        let serviceGroup = hoveredObject;
+        
+        // Find the parent service group
+        while (serviceGroup && !serviceGroup.userData.isSelectable) {
+            serviceGroup = serviceGroup.parent;
+        }
+        
+        if (serviceGroup && serviceGroup.userData.isSelectable) {
+            serviceGroup.scale.copy(serviceGroup.userData.hoverScale);
+            serviceGroup.userData.hovered = true;
+            
+            // Add tooltip
+            const tooltip = document.createElement('div');
+            tooltip.className = 'tooltip';
+            tooltip.textContent = serviceGroup.userData.serviceName;
+            tooltip.style.cssText = `
+                position: fixed;
+                left: ${event.clientX + 10}px;
+                top: ${event.clientY + 10}px;
+                background: rgba(0, 0, 0, 0.8);
+                color: white;
+                padding: 8px 12px;
+                border-radius: 4px;
+                font-size: 14px;
+                pointer-events: none;
+                z-index: 1000;
+                border: 1px solid rgba(0, 255, 255, 0.3);
+                box-shadow: 0 0 10px rgba(0, 255, 255, 0.2);
+            `;
+            document.body.appendChild(tooltip);
+            
+            // Remove tooltip after a short delay
+            setTimeout(() => tooltip.remove(), 100);
+        }
+    }
+
+    if (planet && !isDragging && !isTouching) {
         const mouseX = (event.clientX - window.innerWidth / 2) / 100;
         const mouseY = (event.clientY - window.innerHeight / 2) / 100;
         const targetRotationY = -Math.PI * 0.1 + mouseX * 0.2;
@@ -151,7 +257,7 @@ function onMouseMove(event) {
     }
 }
 
-// Update mouse down handler
+// Update mouse down handler to work with both mouse and touch
 function onMouseDown(event) {
     isDragging = true;
     previousMousePosition = {
@@ -173,12 +279,27 @@ function onMouseDown(event) {
             selectedObject = selectedObject.parent;
         }
         autoRotation = false;
+        
+        // Add click effect
+        if (selectedObject.userData.isSelectable) {
+            selectedObject.scale.set(0.9, 0.9, 0.9);
+            setTimeout(() => {
+                selectedObject.scale.copy(selectedObject.userData.hovered ? 
+                    selectedObject.userData.hoverScale : 
+                    selectedObject.userData.originalScale);
+            }, 100);
+        }
     }
 }
 
-// Update mouse up handler
+// Update mouse up handler to work with both mouse and touch
 function onMouseUp() {
     isDragging = false;
+    if (selectedObject && selectedObject.userData.isSelectable) {
+        selectedObject.scale.copy(selectedObject.userData.hovered ? 
+            selectedObject.userData.hoverScale : 
+            selectedObject.userData.originalScale);
+    }
     selectedObject = null;
     autoRotation = true;
 }
